@@ -9,11 +9,16 @@ def tokenize(text):
     - Signos de puntuación: ¡ ! ¿ ? . ,
     """
 
+    # Convierte todo a minúsculas
+    text = text.lower()
+
+    
     # La expresión regular separa:
+    # ee.uu.          -> casos especiales de entidades
     # \d+              -> números
     # [A-Za-zÁÉÍÓÚáéíóúÑñ]+ -> palabras
     # [¡!¿?.,]         -> signos de puntuación
-    pattern = r"\d+|[A-Za-zÁÉÍÓÚáéíóúÑñ]+|[¡!¿?.,]"
+    pattern = r"ee\.uu\.|\d+|[A-Za-zÁÉÍÓÚáéíóúÑñ]+|[¡!¿?.,]"
 
     # findall devuelve cada elemento encontrado como un token independiente
     tokens = re.findall(pattern, text)
@@ -71,3 +76,8 @@ print(resultado9)
 texto10 = "—Hola, Juan. ¿Cómo te fue en el parcial? —Bien, saqué 4."
 resultado10 = tokenize(texto10)
 print(resultado10)
+
+# Texto 11: texto con entidades especiales
+texto11 = "La relación entre EE.UU. y China es compleja."
+resultado11 = tokenize(texto11)
+print(resultado11)
