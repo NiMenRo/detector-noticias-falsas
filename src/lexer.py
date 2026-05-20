@@ -25,7 +25,7 @@ def tokenize(text):
 
     return tokens
 
-
+"""
 # Prueba
 
 # Texto 1: saludo simple
@@ -81,3 +81,4 @@ print(resultado10)
 texto11 = "La relación entre EE.UU. y China es compleja."
 resultado11 = tokenize(texto11)
 print(resultado11)
+"""
