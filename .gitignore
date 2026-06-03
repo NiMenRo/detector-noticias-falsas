@@ -1,0 +1,78 @@
+# Archivos de verificación e implementación (documentación temporal)
+VERIFICACION_*.md
+VERIFICACION_*.txt
+IMPLEMENTACION_*.md
+IMPLEMENTACION_*.txt
+RESUMEN_IMPLEMENTACION*.md
+RESUMEN_IMPLEMENTACION*.txt
+CHECKLIST_*.md
+CHECKLIST_*.txt
+HERRAMIENTAS_*.md
+HERRAMIENTAS_*.txt
+INICIO_RAPIDO*.md
+INICIO_RAPIDO*.txt
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Entorno virtual
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Temporal
+*.tmp
+*.temp
+.cache/
+
+# Logs
+*.log
+
+# Datos
+*.csv
+*.db
+*.sqlite
+*.sqlite3
+
+# Archivos de sistema
+Thumbs.db
+.DS_Store
+
+# Otros archivos de documentación temporal
+*.backup
+*.bak
+*_old.*
+*_backup.*
