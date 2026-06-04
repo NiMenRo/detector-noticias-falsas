@@ -11,6 +11,8 @@ HERRAMIENTAS_*.md
 HERRAMIENTAS_*.txt
 INICIO_RAPIDO*.md
 INICIO_RAPIDO*.txt
+ANALISIS_*.md
+README_ATN*.md
 
 # Python
 __pycache__/
