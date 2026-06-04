@@ -225,7 +225,7 @@ def crear_lexico_fake_news():
         "falso": {"cat": "adj", "gen": "masc", "num": "sing", "rasgo": "desconfianza"},
         "falsa": {"cat": "adj", "gen": "fem", "num": "sing", "rasgo": "desconfianza"},
 
-        "amenaza": {"cat": "v", "num": "sing", "accion": "amenazar", "sensacionalismo": True},
+        "amenaza": {"cat": "v", "num": "sing", "accion": "amenazar",  "sensacionalismo": True},
         "amenazan": {"cat": "v", "num": "plur", "accion": "amenazar", "sensacionalismo": True},
         "revela": {"cat": "v", "num": "sing", "accion": "revelar", "sensacionalismo": True},
         "revelan": {"cat": "v", "num": "plur", "accion": "revelar", "sensacionalismo": True},
@@ -235,4 +235,5 @@ def crear_lexico_fake_news():
         "descubren": {"cat": "v", "num": "plur", "accion": "descubrir", "sensacionalismo": True},
         "oculta": {"cat": "v", "num": "sing", "accion": "ocultar", "sensacionalismo": True},
         "ocultan": {"cat": "v", "num": "plur", "accion": "ocultar", "sensacionalismo": True},
+        "amenazas": {"cat": "v", "num": "plur", "accion": "amenazar", "sensacionalismo": True},
     }

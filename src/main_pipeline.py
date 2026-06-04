@@ -49,9 +49,7 @@ def mostrar_resultado(resultado: dict) -> None:
     print(f"Texto: {resultado['texto_original']}")
     print(f"Palabras: {estadisticas['num_palabras']}")
     print(f"Oraciones: {estadisticas['num_oraciones']}")
-    print(f"\nClasificacion: {clasificacion['categoria']}")
-    print(f"Score final: {clasificacion['score_final']:.3f}")
-    print(f"Confianza: {clasificacion['confianza'] * 100:.1f}%")
+    
 
     print(f"\nNormalizacion (DCG + DAG):")
     estado = "VALIDO" if normalizacion.get('texto_gramaticalmente_valido', True) else "ERROR DE CONCORDANCIA"
@@ -60,6 +58,10 @@ def mostrar_resultado(resultado: dict) -> None:
     print(f"- Oraciones invalidas: {normalizacion.get('num_oraciones_invalidas', 0)}")
     for err in normalizacion.get('oraciones_invalidas', []):
         print(f"  * [{err['oracion_idx'] + 1}] {' '.join(err['tokens'])} -> {err['error']}")
+
+    print(f"\nClasificacion: {clasificacion['categoria']}")
+    print(f"Score final: {clasificacion['score_final']:.3f}")
+    print(f"Confianza: {clasificacion['confianza'] * 100:.1f}%")
 
     print("\nAmbiguedad:")
     print(f"- Score: {ambiguedad['score_ambiguedad']:.3f}")
