@@ -26,9 +26,10 @@ class ClasificadorFakeNews:
     
     def __init__(self):
         # Pesos del modelo de scoring (deben sumar 1.0)
-        self.peso_ambiguedad = 0.10
-        self.peso_patrones = 0.60
-        self.peso_rasgos = 0.20
+        self.peso_ambiguedad = 0.15
+        self.peso_patrones = 0.35
+        self.peso_rasgos = 0.15
+        self.peso_pcfg = 0.25
         self.peso_otros = 0.10
         
         # Umbrales de clasificación
@@ -40,6 +41,7 @@ class ClasificadorFakeNews:
         score_ambiguedad: float,
         score_patrones: float,
         score_rasgos: float,
+        score_pcfg: float = 0.0,
         score_otros: float = 0.0
     ) -> float:
         """
@@ -59,14 +61,15 @@ class ClasificadorFakeNews:
                     (rasgos * 0.2) + (otros * 0.1)
         """
         # Normalizar inputs a [0, 1]
-        scores = [score_ambiguedad, score_patrones, score_rasgos, score_otros]
+        scores = [score_ambiguedad, score_patrones, score_rasgos, score_pcfg, score_otros]
         scores_normalizados = [min(max(s, 0.0), 1.0) for s in scores]
         
         score_final = (
             scores_normalizados[0] * self.peso_ambiguedad +
             scores_normalizados[1] * self.peso_patrones +
             scores_normalizados[2] * self.peso_rasgos +
-            scores_normalizados[3] * self.peso_otros
+            scores_normalizados[3] * self.peso_pcfg +
+            scores_normalizados[4] * self.peso_otros
         )
         
         return round(score_final, 4)
@@ -210,6 +213,27 @@ class ClasificadorFakeNews:
             )
         
         return " ".join(justificaciones) if justificaciones else "Rasgos diversos detectados."
+
+    def genera_justificacion_pcfg(
+        self,
+        score_pcfg: float,
+        pcfg_dict: Dict[str, Any] = None
+    ) -> str:
+        """Genera justificaciÃ³n para el anÃ¡lisis PCFG ponderado."""
+        if pcfg_dict is None:
+            pcfg_dict = {}
+
+        if score_pcfg < 0.1:
+            return "La PCFG no encontrÃ³ construcciones sospechosas con peso alto."
+
+        explicacion = pcfg_dict.get('explicacion')
+        if explicacion:
+            return explicacion
+
+        return (
+            f"La PCFG asignÃ³ probabilidad de sospecha {score_pcfg:.2f} "
+            "a las construcciones gramaticales encontradas."
+        )
     
     def genera_recomendacion(
         self,
@@ -244,7 +268,9 @@ class ClasificadorFakeNews:
         es_sospechoso_amb: bool,
         patrones_dict: Dict[str, Any],
         score_rasgos: float = 0.0,
-        problemas_rasgos: Dict[str, Any] = None
+        problemas_rasgos: Dict[str, Any] = None,
+        score_pcfg: float = 0.0,
+        pcfg_dict: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """
         Clasificación completa con justificación detallada.
@@ -272,6 +298,7 @@ class ClasificadorFakeNews:
             score_ambiguedad,
             score_patrones,
             score_rasgos,
+            score_pcfg,
             score_otros=0.0
         )
         
@@ -293,6 +320,11 @@ class ClasificadorFakeNews:
         justif_rasgos = self.genera_justificacion_rasgos(
             score_rasgos,
             problemas_rasgos
+        )
+
+        justif_pcfg = self.genera_justificacion_pcfg(
+            score_pcfg,
+            pcfg_dict
         )
         
         recomendacion = self.genera_recomendacion(categoria, score_final)
@@ -317,6 +349,13 @@ class ClasificadorFakeNews:
                 'peso': self.peso_rasgos,
                 'aporte': round(score_rasgos * self.peso_rasgos, 4),
                 'justificacion': justif_rasgos
+            },
+            'pcfg': {
+                'score': score_pcfg,
+                'peso': self.peso_pcfg,
+                'aporte': round(score_pcfg * self.peso_pcfg, 4),
+                'justificacion': justif_pcfg,
+                'detalle': pcfg_dict or {}
             }
         }
         
@@ -332,7 +371,8 @@ class ClasificadorFakeNews:
                 f"ANÁLISIS DE FAKE NEWS:\n"
                 f"1. Ambigüedad: {justif_ambiguedad}\n"
                 f"2. Patrones: {justif_patrones}\n"
-                f"3. Rasgos: {justif_rasgos}\n\n"
+                f"3. Rasgos DCG/DAG: {justif_rasgos}\n"
+                f"4. PCFG: {justif_pcfg}\n\n"
                 f"RECOMENDACIÓN: {recomendacion}"
             ),
             'recomendacion': recomendacion
