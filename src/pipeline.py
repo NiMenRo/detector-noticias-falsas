@@ -384,17 +384,29 @@ class PipelineNoticias:
     def analiza_pcfg_paso(
         self,
         resultado_patrones: Dict[str, Any],
-        num_oraciones: int
+        num_oraciones: int,
+        resultado_ambiguedad: Dict[str, Any] = None,
+        rasgos_problema: Dict[str, Any] = None,
+        normalizacion: Dict[str, Any] = None,
     ) -> Dict[str, Any]:
         """
-        Paso 7: PCFG con reglas ponderadas por sospecha linguistica.
+        Paso 7: PCFG que integra patrones, ambigüedad, DCG/DAG y normalización.
+        Sigue el enfoque de la Clase 10: P(árbol) = Π P(regla).
         """
-        self._log("Aplicando PCFG con pesos de sospecha...", 7)
+        self._log("Aplicando PCFG — integrando patrones, ambigüedad, DCG/DAG...", 7)
 
-        resultado = self.analizador_pcfg.analiza(resultado_patrones, num_oraciones)
+        score_amb = (resultado_ambiguedad or {}).get('score_ambiguedad', 0.0)
+
+        resultado = self.analizador_pcfg.analiza(
+            resultado_patrones,
+            num_oraciones,
+            rasgos_problema=rasgos_problema,
+            score_ambiguedad=score_amb,
+            normalizacion=normalizacion,
+        )
 
         self._log(
-            f"âœ“ PCFG score: {resultado['score_pcfg']} "
+            f"✓ PCFG score: {resultado['score_pcfg']} "
             f"({resultado['num_reglas_aplicadas']} reglas)"
         )
 
@@ -496,7 +508,13 @@ class PipelineNoticias:
         # Paso 6: Patrones sospechosos
         resultado_patrones = self.detecta_patrones_paso(texto, tokens)
 
-        resultado_pcfg = self.analiza_pcfg_paso(resultado_patrones, len(oraciones))
+        resultado_pcfg = self.analiza_pcfg_paso(
+            resultado_patrones,
+            len(oraciones),
+            resultado_ambiguedad=resultado_ambiguedad,
+            rasgos_problema=rasgos_problema,
+            normalizacion=normalizacion,
+        )
 
         # Paso 7: Clasificación
         resultado_clasificacion = self.clasifica_paso(

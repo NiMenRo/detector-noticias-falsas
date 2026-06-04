@@ -81,18 +81,6 @@ def mostrar_resultado(resultado: dict) -> None:
     print(f"- Total: {patrones['resumen']['total_patrones']}")
     print(f"- Score: {patrones['score_total_patrones']:.3f}")
 
-    print("\nDCG/DAG:")
-    print(f"- Oraciones DCG validas: {rasgos['oraciones_dcg_validas']}")
-    print(f"- Fallos de unificacion: {rasgos['num_problemas']}")
-    print(f"- DAGs extraidos: {dag['num_caracteristicas']}")
-    for estructura in dag["estructuras_encontradas"]:
-        stats = estructura["estadisticas"]
-        print(
-            "- "
-            f"oracion {estructura['oracion_idx'] + 1}: "
-            f"nodos={stats['nodos']}, profundidad={stats['profundidad']}"
-        )
-
     print("\nPCFG:")
     print(f"- Score: {pcfg['score_pcfg']:.3f}")
     print(f"- Reglas aplicadas: {pcfg['num_reglas_aplicadas']}")
