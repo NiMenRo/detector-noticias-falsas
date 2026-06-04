@@ -37,6 +37,10 @@ def mostrar_resultado(resultado: dict) -> None:
     clasificacion = resultado["clasificacion"]
     ambiguedad = resultado["ambiguedad"]
     patrones = resultado["patrones"]
+    pcfg = resultado["pcfg"]
+    rasgos = resultado["rasgos"]
+    dag = resultado["caracteristicas_dag"]
+    normalizacion = resultado.get("normalizacion", {})
     estadisticas = resultado["estadisticas_basicas"]
 
     print("\n" + "=" * 60)
@@ -45,6 +49,16 @@ def mostrar_resultado(resultado: dict) -> None:
     print(f"Texto: {resultado['texto_original']}")
     print(f"Palabras: {estadisticas['num_palabras']}")
     print(f"Oraciones: {estadisticas['num_oraciones']}")
+    
+
+    print(f"\nNormalizacion (DCG + DAG):")
+    estado = "VALIDO" if normalizacion.get('texto_gramaticalmente_valido', True) else "ERROR DE CONCORDANCIA"
+    print(f"- Estado gramatical: {estado}")
+    print(f"- Oraciones validas: {normalizacion.get('num_oraciones_validas', 0)}")
+    print(f"- Oraciones invalidas: {normalizacion.get('num_oraciones_invalidas', 0)}")
+    for err in normalizacion.get('oraciones_invalidas', []):
+        print(f"  * [{err['oracion_idx'] + 1}] {' '.join(err['tokens'])} -> {err['error']}")
+
     print(f"\nClasificacion: {clasificacion['categoria']}")
     print(f"Score final: {clasificacion['score_final']:.3f}")
     print(f"Confianza: {clasificacion['confianza'] * 100:.1f}%")
@@ -66,6 +80,24 @@ def mostrar_resultado(resultado: dict) -> None:
     print("\nPatrones sospechosos:")
     print(f"- Total: {patrones['resumen']['total_patrones']}")
     print(f"- Score: {patrones['score_total_patrones']:.3f}")
+
+    print("\nDCG/DAG:")
+    print(f"- Oraciones DCG validas: {rasgos['oraciones_dcg_validas']}")
+    print(f"- Fallos de unificacion: {rasgos['num_problemas']}")
+    print(f"- DAGs extraidos: {dag['num_caracteristicas']}")
+    for estructura in dag["estructuras_encontradas"]:
+        stats = estructura["estadisticas"]
+        print(
+            "- "
+            f"oracion {estructura['oracion_idx'] + 1}: "
+            f"nodos={stats['nodos']}, profundidad={stats['profundidad']}"
+        )
+
+    print("\nPCFG:")
+    print(f"- Score: {pcfg['score_pcfg']:.3f}")
+    print(f"- Reglas aplicadas: {pcfg['num_reglas_aplicadas']}")
+    for regla in pcfg["reglas_aplicadas"]:
+        print(f"- {regla['regla']} peso={regla['peso']:.2f}")
 
     print("\nRecomendacion:")
     print(clasificacion["recomendacion"])

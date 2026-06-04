@@ -3,17 +3,18 @@ Pipeline Integrado para Noticonfia
 
 Procesa texto de forma secuencial a través de todos los módulos PLN:
 
-1. Tokenización y normalización
+1. Tokenización y normalización con validación DCG/DAG
 2. Análisis sintáctico (Chart Parser + CFG)
 3. Detección de ambigüedad
-4. Análisis de rasgos (DCG)
+4. Análisis de rasgos (basado en DCG/DAG de normalización)
 5. Análisis de características (DAG)
 6. Detección de patrones sospechosos
 7. Clasificación final con justificación
 
-Nota: DAG y DCG se usan como validadores de estructura y rasgos, 
-no como analizadores principales. El eje central es:
-    Entrada → Tokenización → Chart Parser → Ambigüedad → Patrones → Clasificación → Salida
+DCG y DAG integrados en la normalización para rechazar errores de concordancia
+(como "una gobierno miente") mediante unificación de rasgos de género y número.
+El eje central es:
+    Entrada → Tokenización + DCG/DAG → Chart Parser → Ambigüedad → Patrones → Clasificación → Salida
 """
 
 import re
@@ -27,6 +28,9 @@ try:
     from ambiguity_detector import DetectorAmbiguedad, detecta_ambiguedad
     from suspicious_patterns import DetectorPatronesSospechosos, detecta_patrones
     from classifier import ClasificadorFakeNews, clasifica_noticia
+    from dcg import Parser as ParserDCG, crear_lexico_fake_news
+    from dag import estadisticas_dag, crear_dag_oracion
+    from pcfg_suspicion import AnalizadorPCFGSospecha
 except ImportError as e:
     # En caso de que los módulos no estén disponibles
     print(f"Advertencia: No se pudo importar módulo: {e}")
@@ -48,7 +52,10 @@ class PipelineNoticias:
         self.verbose = verbose
         self.detector_ambiguedad = DetectorAmbiguedad()
         self.detector_patrones = DetectorPatronesSospechosos()
+        self.analizador_pcfg = AnalizadorPCFGSospecha()
         self.clasificador = ClasificadorFakeNews()
+        self.lexico_dcg = crear_lexico_fake_news()
+        self.parser_dcg = ParserDCG(self.lexico_dcg, debug=False)
     
     def _log(self, mensaje: str, paso: int = 0):
         """Log de progreso si verbose está activado."""
@@ -58,44 +65,115 @@ class PipelineNoticias:
             else:
                 print(mensaje)
     
-    def tokeniza_normaliza(self, texto: str) -> Tuple[List[str], List[List[str]]]:
+    def tokeniza_normaliza(self, texto: str) -> Tuple[List[str], List[List[str]], Dict[str, Any]]:
         """
-        Paso 1: Tokenización y normalización.
+        Paso 1: Tokenización y normalización + validación DCG/DAG.
         
         Args:
             texto: Texto de la noticia
             
         Returns:
-            (oraciones, tokens)
+            (oraciones, tokens, normalizacion)
             - oraciones: Lista de oraciones como strings
             - tokens: Lista de listas de tokens por oración
+            - normalizacion: Dict con validación DCG/DAG (concordancia gramatical)
         """
         self._log("Tokenizando y normalizando texto...", 1)
         
-        # Normalizar espacios y caracteres especiales
         texto_normalizado = re.sub(r'\s+', ' ', texto).strip()
         
-        # Dividir en oraciones (simple: por . ! ?)
         oraciones = re.split(r'[.!?]+', texto_normalizado)
         oraciones = [o.strip() for o in oraciones if o.strip()]
         
-        # Tokenizar cada oración
         tokens = []
         for oracion in oraciones:
-            # Usar función tokenize si está disponible, sino usar split simple
             try:
                 tokens_oracion = tokenize(oracion)
             except:
-                # Fallback: split simple
                 tokens_oracion = oracion.split()
             tokens.append(tokens_oracion)
+        
+        normalizacion = self._valida_normalizacion_dcg(tokens)
         
         self._log(
             f"✓ {len(oraciones)} oraciones, "
             f"{sum(len(t) for t in tokens)} tokens totales"
         )
+        if normalizacion['oraciones_invalidas']:
+            self._log(
+                f"⚠ {len(normalizacion['oraciones_invalidas'])} oraciones con "
+                f"errores de concordancia"
+            )
         
-        return oraciones, tokens
+        return oraciones, tokens, normalizacion
+    
+    def _valida_normalizacion_dcg(self, tokens: List[List[str]]) -> Dict[str, Any]:
+        """
+        Valida concordancia gramatical con DCG + DAG.
+        Rechaza errores como "una gobierno miente" mediante unificación de rasgos.
+        """
+        self._log("     Validando concordancia gramatical (DCG + DAG)...", 1)
+        lexico = self.lexico_dcg
+        parser = self.parser_dcg
+
+        oraciones_validas = []
+        oraciones_invalidas = []
+        errores = []
+        dags_generados = []
+
+        for idx, tokens_oracion in enumerate(tokens):
+            tokens_limpios = [
+                t.lower().strip('.,!?;:\u00bf\u00a1"\'()[]')
+                for t in tokens_oracion
+                if t.strip('.,!?;:\u00bf\u00a1"\'()[]')
+            ]
+
+            if not tokens_limpios:
+                oraciones_validas.append(idx)
+                continue
+
+            resultado = parser.analizar_s(tokens_limpios)
+
+            if resultado is not None:
+                oro_dag = crear_dag_oracion(
+                    resultado.get('np', {}),
+                    resultado.get('vp', {}),
+                    {'accion': resultado.get('accion', '')}
+                )
+                dags_generados.append({
+                    'oracion_idx': idx,
+                    'tokens': tokens_limpios,
+                    'dag': oro_dag,
+                    'intencion': parser.extraer_intencion(resultado)
+                })
+                oraciones_validas.append(idx)
+            else:
+                error_msg = parser.ultimo_error or 'Estructura no reconocida'
+
+                es_error_concordancia = any(p in error_msg.lower() for p in [
+                    'concordancia', 'conflicto'
+                ])
+
+                if es_error_concordancia:
+                    oraciones_invalidas.append({
+                        'oracion_idx': idx,
+                        'tokens': tokens_limpios,
+                        'error': error_msg,
+                        'tipo': 'concordancia'
+                    })
+                    errores.append(error_msg)
+                else:
+                    oraciones_validas.append(idx)
+
+        return {
+            'oraciones_validas': oraciones_validas,
+            'oraciones_invalidas': oraciones_invalidas,
+            'errores_concordancia': errores,
+            'dags_generados': dags_generados,
+            'texto_gramaticalmente_valido': len(oraciones_invalidas) == 0,
+            'num_oraciones_validas': len(oraciones_validas),
+            'num_oraciones_invalidas': len(oraciones_invalidas)
+        }
     
     def analiza_sintaxis(
         self,
@@ -124,15 +202,17 @@ class PipelineNoticias:
                 gramatica_local = {}
         
         arboles_parse = []
+        charts = []
         sintaxis_exitosa = 0
         
         for idx_oracion, tokens_oracion in enumerate(tokens):
             try:
                 # Usar chart_parser si está disponible
                 try:
-                    arbol = chart_parser(tokens_oracion, gramatica_local)
-                    if arbol:
-                        arboles_parse.append(arbol)
+                    arboles_oracion, chart = chart_parser(tokens_oracion, gramatica_local)
+                    charts.append(chart)
+                    if arboles_oracion:
+                        arboles_parse.extend(arboles_oracion)
                         sintaxis_exitosa += 1
                 except:
                     # Fallback: crear estructura simple
@@ -144,7 +224,9 @@ class PipelineNoticias:
         detalles = {
             'num_oraciones': len(tokens),
             'sintaxis_exitosa': sintaxis_exitosa,
-            'tasa_exito': round(sintaxis_exitosa / len(tokens), 2) if tokens else 0
+            'tasa_exito': round(sintaxis_exitosa / len(tokens), 2) if tokens else 0,
+            'num_arboles': len(arboles_parse),
+            'num_charts': len(charts)
         }
         
         self._log(
@@ -181,34 +263,49 @@ class PipelineNoticias:
     def analiza_rasgos_paso(
         self,
         tokens: List[List[str]],
-        arboles_parse: List[Any]
+        arboles_parse: List[Any],
+        normalizacion: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        Paso 4: Análisis de rasgos con DCG (simplificado).
+        Paso 4: Análisis de rasgos con DCG.
+        Usa los resultados de validación DCG/DAG del paso 1 (normalización).
         
         Args:
             tokens: Tokens por oración
             arboles_parse: Árboles sintácticos
+            normalizacion: Resultados de validación DCG/DAG del paso 1
             
         Returns:
             Dict con análisis de rasgos
-            
-        Nota: En una implementación completa, usaría src/dcg.py
-        Por ahora retorna estructura simplificada.
         """
         self._log("Analizando rasgos lingüísticos (género, número)...", 4)
         
-        rasgos_problema = {
-            'concordancia_fallida': False,
-            'estructura_inusual': False,
-            'num_problemas': 0
-        }
-        
-        # Análisis simplificado de concordancia
-        for tokens_oracion in tokens:
-            # Buscar concordancia simple: determinante + nombre + adjetivo
-            # (implementación muy simplificada)
-            pass
+        if normalizacion and normalizacion.get('dags_generados'):
+            dags_dcg = normalizacion['dags_generados']
+            oraciones_fallidas = normalizacion.get('oraciones_invalidas', [])
+            problemas = ['concordancia'] if normalizacion.get('oraciones_invalidas') else []
+            
+            rasgos_problema = {
+                'concordancia_fallida': bool(oraciones_fallidas),
+                'estructura_inusual': bool(oraciones_fallidas),
+                'num_problemas': len(oraciones_fallidas),
+                'oraciones_analizadas': len(tokens),
+                'oraciones_dcg_validas': len(dags_dcg),
+                'oraciones_dcg_fallidas': oraciones_fallidas,
+                'dags_dcg': dags_dcg,
+                'problemas': problemas
+            }
+        else:
+            rasgos_problema = {
+                'concordancia_fallida': False,
+                'estructura_inusual': False,
+                'num_problemas': 0,
+                'oraciones_analizadas': len(tokens),
+                'oraciones_dcg_validas': 0,
+                'oraciones_dcg_fallidas': [],
+                'dags_dcg': [],
+                'problemas': []
+            }
         
         self._log("✓ Análisis de rasgos completado")
         
@@ -216,7 +313,8 @@ class PipelineNoticias:
     
     def analiza_caracteristicas_dag(
         self,
-        arboles_parse: List[Any]
+        arboles_parse: List[Any],
+        rasgos_problema: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Paso 5: Análisis de características con DAG (simplificado).
@@ -232,9 +330,25 @@ class PipelineNoticias:
         """
         self._log("Extrayendo características con DAG...", 5)
         
+        dags_dcg = (rasgos_problema or {}).get('dags_dcg', [])
+        estructuras = []
+
+        for item in dags_dcg:
+            dag_oracion = item['dag']
+            estructuras.append({
+                'oracion_idx': item['oracion_idx'],
+                'tokens': item['tokens'],
+                'intencion': item['intencion'],
+                'estadisticas': estadisticas_dag(dag_oracion),
+                'dag': dag_oracion
+            })
+
         caracteristicas = {
-            'estructuras_encontradas': [],
-            'num_caracteristicas': 0
+            'estructuras_encontradas': estructuras,
+            'num_caracteristicas': len(estructuras),
+            'num_arboles_cfg': len(arboles_parse),
+            'usa_dcg': True,
+            'usa_dag': True
         }
         
         self._log("✓ Análisis DAG completado")
@@ -266,13 +380,34 @@ class PipelineNoticias:
         )
         
         return resultado
+
+    def analiza_pcfg_paso(
+        self,
+        resultado_patrones: Dict[str, Any],
+        num_oraciones: int
+    ) -> Dict[str, Any]:
+        """
+        Paso 7: PCFG con reglas ponderadas por sospecha linguistica.
+        """
+        self._log("Aplicando PCFG con pesos de sospecha...", 7)
+
+        resultado = self.analizador_pcfg.analiza(resultado_patrones, num_oraciones)
+
+        self._log(
+            f"âœ“ PCFG score: {resultado['score_pcfg']} "
+            f"({resultado['num_reglas_aplicadas']} reglas)"
+        )
+
+        return resultado
     
     def clasifica_paso(
         self,
         texto_original: str,
         resultado_ambiguedad: Dict[str, Any],
         resultado_patrones: Dict[str, Any],
-        rasgos_problema: Dict[str, Any]
+        rasgos_problema: Dict[str, Any],
+        resultado_pcfg: Optional[Dict[str, Any]] = None,
+        normalizacion: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Paso 7: Clasificación final con justificación.
@@ -282,20 +417,21 @@ class PipelineNoticias:
             resultado_ambiguedad: Resultado del detector de ambigüedad
             resultado_patrones: Resultado del detector de patrones
             rasgos_problema: Problemas de rasgos detectados
+            resultado_pcfg: Resultado del análisis PCFG
+            normalizacion: Resultados de validación DCG/DAG del paso 1
             
         Returns:
             Dict con clasificación y justificación
         """
-        self._log("Clasificando noticia...", 7)
+        self._log("Clasificando noticia...", 8)
         
-        # Extraer scores
         score_ambiguedad = resultado_ambiguedad['score_ambiguedad']
         num_interpretaciones = resultado_ambiguedad['num_interpretaciones']
         es_sospechoso_amb = resultado_ambiguedad['indicadores_sospechosos']['es_sospechoso']
         score_patrones = resultado_patrones['score_total_patrones']
-        score_rasgos = 0.2 if rasgos_problema.get('concordancia_fallida') else 0.0
+        score_rasgos = min(rasgos_problema.get('num_problemas', 0) * 0.25, 1.0)
+        score_pcfg = (resultado_pcfg or {}).get('score_pcfg', 0.0)
         
-        # Clasificar
         resultado = self.clasificador.clasifica_completo(
             texto_original,
             score_ambiguedad,
@@ -303,7 +439,9 @@ class PipelineNoticias:
             es_sospechoso_amb,
             resultado_patrones,
             score_rasgos,
-            rasgos_problema
+            rasgos_problema,
+            score_pcfg,
+            resultado_pcfg
         )
         
         self._log(
@@ -337,30 +475,37 @@ class PipelineNoticias:
         self._log("INICIANDO ANÁLISIS DE NOTICIA")
         self._log("="*70)
         
-        # Paso 1: Tokenización
-        oraciones, tokens = self.tokeniza_normaliza(texto)
-        
+        # Paso 1: Tokenización + validación DCG/DAG
+        oraciones, tokens, normalizacion = self.tokeniza_normaliza(texto)
+
+        if not normalizacion['texto_gramaticalmente_valido']:
+            self._log("⚠ Se detectaron errores de concordancia gramatical", 1)
+
         # Paso 2: Análisis sintáctico
         arboles_parse, detalles_sintaxis = self.analiza_sintaxis(tokens)
-        
+
         # Paso 3: Ambigüedad
         resultado_ambiguedad = self.detecta_ambiguedad_paso(arboles_parse, texto)
-        
-        # Paso 4: Rasgos
-        rasgos_problema = self.analiza_rasgos_paso(tokens, arboles_parse)
-        
+
+        # Paso 4: Rasgos (usa DCG/DAG de normalización)
+        rasgos_problema = self.analiza_rasgos_paso(tokens, arboles_parse, normalizacion)
+
         # Paso 5: DAG
-        caracteristicas = self.analiza_caracteristicas_dag(arboles_parse)
-        
+        caracteristicas = self.analiza_caracteristicas_dag(arboles_parse, rasgos_problema)
+
         # Paso 6: Patrones sospechosos
         resultado_patrones = self.detecta_patrones_paso(texto, tokens)
-        
+
+        resultado_pcfg = self.analiza_pcfg_paso(resultado_patrones, len(oraciones))
+
         # Paso 7: Clasificación
         resultado_clasificacion = self.clasifica_paso(
             texto,
             resultado_ambiguedad,
             resultado_patrones,
-            rasgos_problema
+            rasgos_problema,
+            resultado_pcfg,
+            normalizacion
         )
         
         # Compilar resultado final
@@ -371,6 +516,7 @@ class PipelineNoticias:
                 'num_palabras': sum(len(t) for t in tokens),
                 'num_oraciones': len(oraciones)
             },
+            'normalizacion': normalizacion,
             'tokenizacion': {
                 'oraciones': oraciones,
                 'tokens': tokens
@@ -380,6 +526,7 @@ class PipelineNoticias:
             'rasgos': rasgos_problema,
             'caracteristicas_dag': caracteristicas,
             'patrones': resultado_patrones,
+            'pcfg': resultado_pcfg,
             'clasificacion': resultado_clasificacion
         }
         
@@ -401,6 +548,11 @@ class PipelineNoticias:
         """
         clasificacion = resultado['clasificacion']
         
+        normalizacion = resultado.get('normalizacion', {})
+        num_validas = normalizacion.get('num_oraciones_validas', 0)
+        num_invalidas = normalizacion.get('num_oraciones_invalidas', 0)
+        estado_gramatical = "VÁLIDO" if normalizacion.get('texto_gramaticalmente_valido', True) else f"ERROR ({num_invalidas} oración(es) con fallo de concordancia)"
+
         resumen = f"""
 ╔════════════════════════════════════════════════════════════════╗
 ║                      RESULTADO DEL ANÁLISIS                   ║
@@ -411,6 +563,10 @@ TEXTO ANALIZADO:
 
 CLASIFICACIÓN: {clasificacion['categoria']}
 Confianza: {clasificacion['confianza'] * 100:.1f}%
+
+VALIDACIÓN GRAMATICAL (DCG + DAG): {estado_gramatical}
+- Oraciones válidas: {num_validas}
+- Oraciones con error: {num_invalidas}
 
 DESGLOSE DE SCORES:
 - Ambigüedad:  {clasificacion['desglose']['ambiguedad']['score']:.2f}/1.0
