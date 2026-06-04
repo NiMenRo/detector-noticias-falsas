@@ -78,3 +78,6 @@ Thumbs.db
 *.bak
 *_old.*
 *_backup.*
+
+#carpeta de contexto
+contexto/
