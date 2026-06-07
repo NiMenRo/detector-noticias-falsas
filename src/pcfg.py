@@ -48,9 +48,9 @@ class PCFG:
         else:
             probas = self.pcfg_sospechoso
         
-        return self._calcular_p_recursivo(arbol, probas)
+        return self._calcular_p_recursivo(arbol, probas, corpus)
     
-    def _calcular_p_recursivo(self, nodo, probas):
+    def _calcular_p_recursivo(self, nodo, probas, corpus='neutral'):
         """Calcula probabilidad recursivamente desde el árbol."""
         if not isinstance(nodo, dict):
             return 1.0
@@ -72,7 +72,10 @@ class PCFG:
         rhs_tuple = tuple(rhs_str.split())
         
         # Obtener probabilidad de esta regla
-        prob_regla = self.obtener_prob_regla_neutral(lhs, rhs_tuple)
+        if corpus == 'neutral':
+            prob_regla = self.obtener_prob_regla_neutral(lhs, rhs_tuple)
+        else:
+            prob_regla = self.obtener_prob_regla_sospechoso(lhs, rhs_tuple)
         if prob_regla == 0.0:
             prob_regla = 0.0001  # Suavizado Laplace
         
@@ -80,7 +83,7 @@ class PCFG:
         prob_hijos = 1.0
         hijos = nodo.get('hijos', [])
         for hijo in hijos:
-            prob_hijos *= self._calcular_p_recursivo(hijo, probas)
+            prob_hijos *= self._calcular_p_recursivo(hijo, probas, corpus)
         
         return prob_regla * prob_hijos
     

@@ -209,7 +209,8 @@ class PipelineNoticias:
             try:
                 # Usar chart_parser si está disponible
                 try:
-                    arboles_oracion, chart = chart_parser(tokens_oracion, gramatica_local)
+                    tokens_filtrados = [t for t in tokens_oracion if t not in ('¡', '¿')]
+                    arboles_oracion, chart = chart_parser(tokens_filtrados, gramatica_local)
                     charts.append(chart)
                     if arboles_oracion:
                         arboles_por_oracion.append(arboles_oracion)
@@ -485,6 +486,14 @@ class PipelineNoticias:
             score_pcfg,
             resultado_pcfg
         )
+
+        if normalizacion and not normalizacion.get('texto_gramaticalmente_valido', True):
+            resultado['categoria'] = 'INVALID_INPUT'
+            resultado['confianza'] = 1.0
+            resultado['recomendacion'] = (
+                "ERROR DE CONCORDANCIA: El texto contiene errores de "
+                "concordancia (genero/numero) que impiden un analisis fiable."
+            )
         
         self._log(
             f"✓ Clasificación: {resultado['categoria']} "
@@ -569,6 +578,7 @@ class PipelineNoticias:
             'caracteristicas_dag': caracteristicas,
             'patrones': resultado_patrones,
             'pcfg': resultado_pcfg,
+            'arboles_parse': arboles_parse,
             'clasificacion': resultado_clasificacion
         }
         

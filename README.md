@@ -1,166 +1,64 @@
-# Detector de Noticias Falsas — Refactorización PCFG Completa
+# Detector de Noticias Falsas — PLN
 
-Implementación completa de un sistema de detección de noticias falsas basado en **Gramáticas Probabilísticas Libres de Contexto (PCFG)** como núcleo central, alineado con los requisitos académicos.
+Sistema de detección de noticias falsas basado en CFG, Chart Parser, DCG, DAG, PCFG y clasificación por pesos.
 
-## ✓ Estado: Todos los 10 Problemas Resueltos
+## Ejecución
 
-### Problemas Solucionados
-
-1. ✓ **CFG auténtica** — Reemplazada por sintaxis real del español
-2. ✓ **Cálculo de P(árbol)** — Implementado: P = Π P(regla)
-3. ✓ **Parser + PCFG integrados** — Árboles anotados con probabilidades
-4. ✓ **Ambigüedad natural** — Desde múltiples árboles sintácticos
-5. ✓ **Patrones en gramática** — MODAL, ADV_ABS, FUENTE_INDEFINIDA
-6. ✓ **Corpus entrenamiento** — 40 oraciones (neutral + sospechoso)
-7. ✓ **Entrenador PCFG** — Calcula probabilidades automáticamente
-8. ✓ **Clasificación desde PCFG** — P(árbol) es el 50% del score
-9. ✓ **Justificaciones lingüísticas** — Explica árbol, reglas y patrones
-10. ✓ **Pipeline completo** — 7 pasos integrados correctamente
-
-## Arquitectura
-
-```
-Texto
-  ↓
-Tokenización y normalización
-  ↓
-CFG + Chart Parser → múltiples árboles
-  ↓
-Detección de ambigüedad → entropía
-  ↓
-PCFG entrenada desde corpus → P(árbol)
-  ↓
-Clasificación basada en P(árbol)
-  ↓
-Justificación lingüística detallada
+```bash
+python src/demo.py
 ```
 
-## Módulos Principales
+Menú interactivo con 3 opciones:
+1. **Analizar texto manualmente** — ingresa cualquier texto, muestra árbol sintáctico (ventana gráfica), clasificación y PCFG real desde corpus.
+2. **Ejecutar 6 casos de prueba** — ejecuta toda la batería sin ventanas.
+3. **Salir**
 
-### Core PCFG
-- **`src/grammar.py`** — CFG auténtica con sintaxis real
-- **`src/pcfg.py`** — Cálculo de P(árbol) = Π P(regla)
-- **`src/pcfg_trainer.py`** — Entrena PCFG desde corpus
+## Dependencias
 
-### Análisis
-- **`src/ambiguity_detector.py`** — Detecta ambigüedad natural (entropía)
-- **`src/classifier.py`** — Clasificación con PCFG como núcleo (50%)
-- **`src/justifier.py`** — Justificaciones lingüísticas
+- Python 3.10+
+- `matplotlib` (solo para visualización de árboles en modo manual)
 
-### Orquestación
-- **`src/pipeline_pcfg.py`** — Pipeline integrado 7 pasos
+## Componentes
 
-### Datos
-- **`data/corpus_neutral.txt`** — 20 oraciones verificadas
-- **`data/corpus_sospechoso.txt`** — 20 oraciones sospechosas
+| Módulo | Función |
+|---|---|
+| `src/pipeline.py` | Orquestador de 7 pasos: tokenización → sintaxis → ambigüedad → rasgos → DAG → patrones → clasificación |
+| `src/grammar.py` | CFG del español con 50+ reglas (PP, MODAL, ADV_ABS, etc.) |
+| `src/chart_parser.py` | Algoritmo CYK para análisis sintáctico |
+| `src/dcg.py` | DCG con unificación de rasgos (género, número) |
+| `src/nodes.py` | Clase `Nodo` para árboles sintácticos |
+| `src/ambiguity_detector.py` | Detección de ambigüedad léxica y sintáctica |
+| `src/suspicious_patterns.py` | Patrones lingüísticos sospechosos (modales, absolutas, negaciones, tipografía) |
+| `src/pcfg_suspicion.py` | PCFG de sospecha con reglas ponderadas (score 0-1) |
+| `src/pcfg.py` | PCFG real entrenada desde corpus: cálculo de P(árbol) = Π P(regla) |
+| `src/pcfg_trainer.py` | Entrenador: cuenta frecuencias de reglas desde corpus etiquetado |
+| `src/classifier.py` | Clasificador: score_final = amb×0.05 + pat×0.20 + rasgos×0.03 + pcfg×0.70 |
+| `src/tree_viz.py` | Visualización matplotlib de árboles sintácticos |
+| `src/tree_converter.py` | Convierte `Nodo` → dict para PCFG real |
+| `src/main_pipeline.py` | CLI alternativa (solo entrada manual) |
 
-## Cómo Usar
+## Pesos de clasificación
 
-### 1. Instancia Mínima
-```python
-from src.pipeline_pcfg import crear_pipeline
-from src.pcfg import obtener_pcfg
+`classifier.py`:
+- PCFG: **70%**
+- Patrones sospechosos: **20%**
+- Ambigüedad: **5%**
+- Rasgos DCG/DAG: **3%**
+- Otros: **2%**
 
-pipeline = crear_pipeline(pcfg=obtener_pcfg())
-resultado = pipeline.procesar("El gobierno anunció nuevas políticas")
-```
+Umbrales: CREDIBLE < 0.40 ≤ SUSPICIOUS < 0.70 ≤ FAKE.
 
-### 2. Con Todos los Módulos
-```python
-from src.pipeline_pcfg import crear_pipeline
-from src.pcfg import obtener_pcfg
-from src.ambiguity_detector import AmbiguityDetectorSyntactic
-from src.justifier import crear_justifier
-from src.classifier import ClasificadorFakeNews
+## Datos
 
-pipeline = crear_pipeline(
-    pcfg=obtener_pcfg(),
-    ambiguity_detector=AmbiguityDetectorSyntactic(),
-    justifier=crear_justifier(),
-    classifier=ClasificadorFakeNews()
-)
+- `data/corpus_neutral.txt` — 23 oraciones verificadas
+- `data/corpus_sospechoso.txt` — 23 oraciones sospechosas
 
-resultado = pipeline.procesar(texto)
-print(f"Categoría: {resultado['clasificacion']['categoria']}")
-print(f"P(árbol): {resultado['p_arbol']:.4f}")
-```
+## DCG / DAG
 
-### 3. Entrenar PCFG Personalizado
-```python
-from src.pcfg_trainer import PCFGTrainer
+El pipeline valida concordancia gramatical (género, número) mediante DCG + DAG. Si falla, la clasificación se sobrescribe a `INVALID_INPUT`.
 
-trainer = PCFGTrainer()
-pcfg = trainer.entrenar_desde_corpus('data/corpus_neutral.txt')
-trainer.mostrar_pcfg()
-```
+## Archivos de documentación
 
-## Estructura de Salida
-
-```json
-{
-  "texto": "...",
-  "tokens": ["el", "gobierno", "..."],
-  "num_arboles": 2,
-  "ambiguedad": {
-    "num_arboles": 2,
-    "entropía": 0.521,
-    "nivel_ambiguedad": "MEDIA"
-  },
-  "p_arbol": 0.374,
-  "clasificacion": {
-    "categoria": "SUSPICIOUS",
-    "score_final": 0.52
-  },
-  "justificacion": {
-    "resumen": "⚠️ Nivel de sospecha: MEDIO",
-    "reglas_activadas": [...],
-    "patrones_sospechosos": [...]
-  }
-}
-```
-
-## Fórmulas Clave
-
-### Probabilidad de Árbol
-```
-P(árbol) = P(S→NP VP) × P(NP→Det N) × P(VP→V NP) × ...
-```
-
-### Entropía de Ambigüedad
-```
-H = -Σ P(árbolᵢ) × log₂(P(árbolᵢ))
-```
-
-### Clasificación Final
-```
-Score = 0.50 × P_PCFG + 0.15 × ambiguedad + 0.20 × patrones + 0.10 × rasgos + 0.05 × otros
-```
-
-## Documentación Completa
-
-- **`docs/ESPECIFICACION_PCFG.md`** — Especificación detallada
-- **`docs/SOLUCION_10_PROBLEMAS.md`** — Solución de cada problema
-
-## Validación de Requisitos Académicos
-
-✓ CFG modela la sintaxis  
-✓ Chart Parser genera árboles  
-✓ Ambigüedad surge naturalmente  
-✓ PCFG calcula probabilidades reales  
-✓ Corpus determina los pesos  
-✓ Clasificación basada en teoría de PCFG  
-✓ Justificaciones lingüísticas rigurosas  
-✓ Documentación técnica completa  
-
-## Próximos Pasos
-
-- [ ] Expandir corpus a 500+ oraciones
-- [ ] Validar F1-score contra ground truth
-- [ ] Ajustar umbrales de clasificación
-- [ ] Integración con dataset externo
-- [ ] Optimización de performance
-
-## Autor
-
-Refactorización completada: Junio 2026  
-Requisitos académicos cumplidos ✓
+- `docs/ESPECIFICACION_PCFG.md`
+- `docs/SOLUCION_10_PROBLEMAS.md`
+- `docs/RESUMEN_FINAL.md`

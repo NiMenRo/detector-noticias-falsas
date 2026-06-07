@@ -1,6 +1,7 @@
 from lexer import tokenize
 from grammar import gramatica
 from chart_parser import chart_parser
+from tree_viz import visualizar
 
 
 # Texto de prueba
@@ -43,6 +44,8 @@ if arboles:
         print(f"Árbol {i + 1}:\n")
 
         print(arbol)
+
+        visualizar(arbol, f"Árbol {i + 1}: '{texto}'")
 
 else:
 
