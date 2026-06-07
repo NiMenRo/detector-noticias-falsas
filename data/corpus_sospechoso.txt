@@ -1,0 +1,23 @@
+# Corpus Sospechoso - Noticias no verificadas, rumores, sensacionalismo
+# Formato: Cada línea es una oración representativa del corpus
+
+Supuestamente el gobierno oculta información sobre crisis.
+Se rumorea que políticos siempre cometen fraudes sistemáticos.
+Fuentes anónimas dicen que autoridades cierran investigaciones.
+Aparentemente expertos afirman descubrimientos revolucionarios sin confirmación.
+Según dicen científicos revelan hallazgos que cambian todo.
+Se dice que definitivamente agencias censuran información importante.
+Rumores indican que posiblemente presidentes conspiran secretamente.
+Supuestamente organismos siempre ocultan documentos sobre epidemias.
+Fuentes indefinidas afirman que violentamente gobiernos reprimen manifestaciones.
+Se rumorea que absolutamente todas instituciones mienten sistemáticamente.
+Aparentemente ministros nunca transparencia en decisiones públicas.
+Según fuentes anónimas ministros siempre deciden en secreto.
+Se dice posiblemente agencias provocan crisis deliberadamente.
+Supuestamente investigadores descubren curas pero siempre las ocultan.
+Rumores indican que definitivamente políticos atacan libertades ciudadanas.
+Fuentes dicen que aparentemente virus se origina en laboratorios militares.
+Se rumorea que autoridades nunca permiten investigación independiente.
+Supuestamente documentos revelados confirman conspiración mundial.
+Según dicen expertos previenen desastres pero gobiernos ignoran.
+Se dice que absolutamente nada de información oficial es veraz.

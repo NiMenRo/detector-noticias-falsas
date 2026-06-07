@@ -17,59 +17,78 @@ class DetectorPatronesSospechosos:
     """Detecta patrones lingüísticos indicadores de fake news."""
     
     def __init__(self):
+        # Mapa de acentos para normalización
+        self._acentos = str.maketrans(
+            'áéíóúÁÉÍÓÚüÜñÑ',
+            'aeiouAEIOUuUnN'
+        )
+        
         # Palabras que indican afirmaciones absolutas
         self.absolutas = {
-            'siempre', 'nunca', 'todos', 'ninguno', 'absolutamente',
-            'definitivamente', 'ciertamente', 'sin duda', 'es un hecho'
+            'siempre', 'todos', 'absolutamente',
+            'definitivamente', 'ciertamente', 'sin duda',
+            'todo', 'totalmente', 'completamente',
+            'increible', 'impactante', 'escandaloso',
+            'verdaderamente', 'indiscutible', 'indudable'
         }
         
         # Verbos modales vagos (expresan incertidumbre o vaguedad)
         self.modales_vagos = {
-            'puede', 'podría', 'probablemente', 'quizás', 'tal vez',
+            'puede', 'podria', 'probablemente', 'quizas', 'tal vez',
             'parece', 'aparentemente', 'posiblemente', 'supuestamente',
-            'al parecer', 'según dicen', 'se dice que'
+            'al parecer', 'podrian', 'talvez'
         }
         
         # Frases que indican falta de fuente
         self.sin_fuente = {
-            'se dice que', 'la gente dice', 'según fuentes',
-            'al parecer', 'supuestamente', 'se rumorea',
-            'se reporta que', 'aparentemente', 'dicen que'
+            'se dice que', 'la gente dice', 'segun fuentes',
+            'se rumorea', 'se reporta que', 'dicen que',
+            'segun algunas personas', 'fuentes cercanas',
+            'segun dicen'
         }
         
         # Patrones regex para detectar problemas
         self.patrones_regex = {
             'exclamaciones': r'[!]{2,}',  # !! o más
-            'caps_excesivas': r'[A-Z]{3,}(?:\s+[A-Z]{3,}){2,}',  # PALABRAS EN CAPS
+            'caps_excesivas': r'(?:^|\s)([A-Z]{2,}(?:\s+[A-Z]{2,}){1,})',  # PALABRAS EN CAPS (2+ letras)
             'puntos_suspension': r'\.{2,}',  # ... o más
         }
     
+    def _normalizar(self, texto):
+        """Normaliza acentos para matching insensible."""
+        return texto.translate(self._acentos)
+    
+    def _detectar_patrones_multiword(self, palabras_lower, patrones, tipo, score):
+        """Detecta patrones multi-word en una lista de tokens."""
+        resultados = []
+        # Primero busca multi-word patterns
+        texto = ' '.join(palabras_lower)
+        for patron in patrones:
+            if ' ' in patron:  # Multi-word
+                if patron in texto:
+                    # Encontrar posición
+                    palabras_patron = patron.split()
+                    for i in range(len(palabras_lower) - len(palabras_patron) + 1):
+                        if palabras_lower[i:i+len(palabras_patron)] == palabras_patron:
+                            resultados.append({
+                                'oracion_idx': 0,  # Se asigna luego
+                                'palabra_idx': i,
+                                'palabra': patron,
+                                'tipo': tipo,
+                                'score': score
+                            })
+                            break
+        return resultados
+
     def detecta_afirmaciones_absolutas(self, tokens: List[List[str]]) -> List[Dict[str, Any]]:
-        """
-        Detecta afirmaciones absolutas (sin matices).
-        
-        Args:
-            tokens: Lista de oraciones tokenizadas [[palabra1, palabra2], ...]
-            
-        Returns:
-            Lista de dicts:
-            [
-                {
-                    'oracion_idx': 0,
-                    'palabra': 'siempre',
-                    'tipo': 'absoluta',
-                    'score': 0.8
-                },
-                ...
-            ]
-        """
         afirmaciones = []
         
         for idx_oracion, tokens_oracion in enumerate(tokens):
-            palabras_lower = [p.lower().strip('.,!?;:') for p in tokens_oracion]
+            palabras_lower = [self._normalizar(p.lower().strip('.,!?;:')) for p in tokens_oracion]
             
+            # Detectar palabras individuales
             for idx_palabra, palabra in enumerate(palabras_lower):
-                if palabra in self.absolutas:
+                if palabra in self.absolutas and ' ' not in palabra:
                     afirmaciones.append({
                         'oracion_idx': idx_oracion,
                         'palabra_idx': idx_palabra,
@@ -77,26 +96,35 @@ class DetectorPatronesSospechosos:
                         'tipo': 'absoluta',
                         'score': 0.8
                     })
+            
+            # Detectar multi-word patterns
+            texto = ' '.join(palabras_lower)
+            for patron in self.absolutas:
+                if ' ' in patron and patron in texto:
+                    palabras_patron = patron.split()
+                    for i, p in enumerate(palabras_lower):
+                        if i + len(palabras_patron) <= len(palabras_lower) and \
+                           palabras_lower[i:i+len(palabras_patron)] == palabras_patron:
+                            afirmaciones.append({
+                                'oracion_idx': idx_oracion,
+                                'palabra_idx': i,
+                                'palabra': patron,
+                                'tipo': 'absoluta',
+                                'score': 0.8
+                            })
+                            break
         
         return afirmaciones
     
     def detecta_modales_vagos(self, tokens: List[List[str]]) -> List[Dict[str, Any]]:
-        """
-        Detecta verbos modales que expresan vaguedad.
-        
-        Args:
-            tokens: Oraciones tokenizadas
-            
-        Returns:
-            Lista de dicts con modales vagos encontrados
-        """
         modales = []
         
         for idx_oracion, tokens_oracion in enumerate(tokens):
-            palabras_lower = [p.lower().strip('.,!?;:') for p in tokens_oracion]
+            palabras_lower = [self._normalizar(p.lower().strip('.,!?;:')) for p in tokens_oracion]
             
+            # Detectar palabras individuales
             for idx_palabra, palabra in enumerate(palabras_lower):
-                if palabra in self.modales_vagos:
+                if palabra in self.modales_vagos and ' ' not in palabra:
                     modales.append({
                         'oracion_idx': idx_oracion,
                         'palabra_idx': idx_palabra,
@@ -104,24 +132,31 @@ class DetectorPatronesSospechosos:
                         'tipo': 'modal_vago',
                         'score': 0.5
                     })
+            
+            # Detectar multi-word patterns
+            texto = ' '.join(palabras_lower)
+            for patron in self.modales_vagos:
+                if ' ' in patron and patron in texto:
+                    palabras_patron = patron.split()
+                    primera = palabras_patron[0]
+                    for i, p in enumerate(palabras_lower):
+                        if p == primera and palabras_lower[i:i+len(palabras_patron)] == palabras_patron:
+                            modales.append({
+                                'oracion_idx': idx_oracion,
+                                'palabra_idx': i,
+                                'palabra': patron,
+                                'tipo': 'modal_vago',
+                                'score': 0.5
+                            })
+                            break
         
         return modales
     
     def detecta_ausencia_fuentes(self, tokens: List[List[str]]) -> List[Dict[str, Any]]:
-        """
-        Detecta frases que indican ausencia de fuentes verificables.
-        
-        Args:
-            tokens: Oraciones tokenizadas
-            
-        Returns:
-            Lista de dicts con frases sin fuente
-        """
         sin_fuente_list = []
         
         for idx_oracion, tokens_oracion in enumerate(tokens):
-            # Crear texto de oración para búsqueda de frases
-            texto_oracion = ' '.join(tokens_oracion).lower()
+            texto_oracion = self._normalizar(' '.join(tokens_oracion).lower())
             
             for frase in self.sin_fuente:
                 if frase in texto_oracion:
@@ -162,20 +197,11 @@ class DetectorPatronesSospechosos:
         return cortas
     
     def detecta_negaciones_multiples(self, tokens: List[List[str]]) -> List[Dict[str, Any]]:
-        """
-        Detecta múltiples negaciones en una oración (confusión intencional).
-        
-        Args:
-            tokens: Oraciones tokenizadas
-            
-        Returns:
-            Lista de oraciones con negaciones múltiples
-        """
         negaciones_mult = []
-        negacion_palabras = {'no', 'nunca', 'ni', 'nadie', 'nada', 'ningún', 'ninguno'}
+        negacion_palabras = {'no', 'nunca', 'ni', 'nadie', 'nada', 'ningun', 'ninguno', 'jamas'}
         
         for idx_oracion, tokens_oracion in enumerate(tokens):
-            palabras_lower = [p.lower().strip('.,!?;:') for p in tokens_oracion]
+            palabras_lower = [self._normalizar(p.lower().strip('.,!?;:')) for p in tokens_oracion]
             num_negaciones = sum(1 for p in palabras_lower if p in negacion_palabras)
             
             if num_negaciones >= 2:
@@ -224,20 +250,9 @@ class DetectorPatronesSospechosos:
         modales: List[Dict],
         sin_fuente: List[Dict],
         negaciones: List[Dict],
-        tipografia: Dict[str, int]
+        tipografia: Dict[str, int],
+        oraciones_cortas: List[Dict] = None
     ) -> float:
-        """
-        Calcula score total de sospecha por patrones (0-1).
-        
-        Ponderación:
-        - Afirmaciones absolutas: +0.15 cada una
-        - Verbos modales vagos: +0.10 cada una
-        - Ausencia de fuente: +0.20 cada una
-        - Negaciones múltiples: +0.15 cada una
-        - Tipografía sospechosa: +0.10 cada patrón
-        
-        Cap máximo: 1.0
-        """
         score = 0.0
         
         score += len(afirmaciones_abs) * 0.15
@@ -245,7 +260,9 @@ class DetectorPatronesSospechosos:
         score += len(sin_fuente) * 0.20
         score += len(negaciones) * 0.15
         
-        # Tipografía
+        if oraciones_cortas:
+            score += len(oraciones_cortas) * 0.10
+        
         score += tipografia.get('exclamaciones_multiples', 0) * 0.05
         score += tipografia.get('caps_excesivas', 0) * 0.08
         score += tipografia.get('puntos_suspension', 0) * 0.05
@@ -275,7 +292,7 @@ class DetectorPatronesSospechosos:
         tipografia = self.detecta_patrones_tipograficos(texto)
         
         score_total = self.calcula_score_total_patrones(
-            afirmaciones, modales, sin_fuente, negaciones, tipografia
+            afirmaciones, modales, sin_fuente, negaciones, tipografia, oraciones_cortas
         )
         
         return {

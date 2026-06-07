@@ -26,11 +26,12 @@ class ClasificadorFakeNews:
     
     def __init__(self):
         # Pesos del modelo de scoring (deben sumar 1.0)
-        self.peso_ambiguedad = 0.15
-        self.peso_patrones = 0.35
-        self.peso_rasgos = 0.15
-        self.peso_pcfg = 0.25
-        self.peso_otros = 0.10
+        # Problema 8: P(árbol) es ahora el núcleo central
+        self.peso_pcfg = 0.70       # PCFG domina el score
+        self.peso_ambiguedad = 0.05  # Complementario
+        self.peso_patrones = 0.20    # Complementario
+        self.peso_rasgos = 0.03      # Complementario
+        self.peso_otros = 0.02       # Otros indicadores
         
         # Umbrales de clasificación
         self.umbral_credible = 0.40
