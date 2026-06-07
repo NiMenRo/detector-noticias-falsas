@@ -205,7 +205,8 @@ class DetectorAmbiguedad:
     def calcula_ambiguedad_score(self, num_interpretaciones: int) -> float:
         if num_interpretaciones <= 1:
             return 0.0
-        return round(min(math.log2(num_interpretaciones) / 3.0, 1.0), 3)
+        mapping = {2: 0.40, 3: 0.60, 4: 0.80}
+        return mapping.get(num_interpretaciones, 1.0)
 
     def _cuenta_interpretaciones(self, arboles_parse: Optional[Iterable[Any]]) -> int:
         if not arboles_parse:
@@ -262,3 +263,123 @@ def detecta_ambiguedad_rapido(oracion: str) -> Tuple[int, float, bool]:
         resultado["score_ambiguedad"],
         resultado["indicadores_sospechosos"]["es_sospechoso"],
     )
+
+
+# ============================================================
+# Problema 4: Detección de ambigüedad sintáctica desde árboles
+# La ambigüedad debe surgir naturalmente de múltiples árboles
+# ============================================================
+
+class AmbiguityDetectorSyntactic:
+    """Detecta ambigüedad sintáctica analizando múltiples árboles."""
+    
+    def __init__(self):
+        self.arboles = []
+    
+    def detectar_ambiguedad_sintactica(self, arboles):
+        """
+        Analiza conjunto de árboles para detectar ambigüedad.
+        
+        Problema 4: La ambigüedad surge naturalmente cuando existen
+        múltiples árboles válidos para la misma oración.
+        
+        Args:
+            arboles: Lista de árboles sintácticos posibles
+        
+        Returns:
+            Dict con métricas de ambigüedad
+        """
+        if not arboles or len(arboles) == 0:
+            return self._resultado_sin_ambiguedad()
+        
+        # Calcular probabilidades de cada árbol
+        probabilidades = self._calcular_probabilidades_arboles(arboles)
+        
+        # Calcular métricas
+        num_arboles = len(arboles)
+        entropía = self._calcular_entropia(probabilidades)
+        confianza = max(probabilidades) if probabilidades else 0.0
+        
+        arbol_mas_probable_idx = probabilidades.index(max(probabilidades))
+        arbol_seleccionado = arboles[arbol_mas_probable_idx]
+        
+        return {
+            'num_arboles': num_arboles,
+            'probabilidades': probabilidades,
+            'entropía': entropía,
+            'confianza': confianza,
+            'arbol_seleccionado': arbol_seleccionado,
+            'arbol_idx': arbol_mas_probable_idx,
+            'es_ambiguo': entropía > 0.5,
+            'nivel_ambiguedad': self._clasificar_ambiguedad(entropía)
+        }
+    
+    def _calcular_probabilidades_arboles(self, arboles):
+        """Calcula P(árbol) para cada árbol."""
+        probabilidades = []
+        for arbol in arboles:
+            prob = self._estimar_prob_arbol(arbol)
+            probabilidades.append(prob)
+        
+        # Normalizar probabilidades
+        total = sum(probabilidades) if probabilidades else 1.0
+        if total > 0:
+            probabilidades = [p / total for p in probabilidades]
+        
+        return probabilidades
+    
+    def _estimar_prob_arbol(self, arbol):
+        """Estima P(árbol) contando nodos (fallback sin PCFG)."""
+        return self._contar_nodos_recursivo(arbol) / 10.0
+    
+    def _contar_nodos_recursivo(self, nodo):
+        """Cuenta nodos en el árbol."""
+        if not isinstance(nodo, dict):
+            return 1
+        
+        count = 1
+        if 'hijos' in nodo:
+            for hijo in nodo['hijos']:
+                count += self._contar_nodos_recursivo(hijo)
+        
+        return count
+    
+    def _calcular_entropia(self, probabilidades):
+        """
+        Calcula entropía: H = -Σ P(árbol) * log₂(P(árbol))
+        
+        - H = 0: Una única interpretación (sin ambigüedad)
+        - H > 0: Múltiples interpretaciones (ambigüedad)
+        - H máxima: Todas las interpretaciones igual probables
+        """
+        if not probabilidades or len(probabilidades) <= 1:
+            return 0.0
+        
+        entropía = 0.0
+        for p in probabilidades:
+            if p > 0:
+                entropía -= p * math.log2(p)
+        
+        return entropía
+    
+    def _clasificar_ambiguedad(self, entropía):
+        """Clasifica el nivel de ambigüedad."""
+        if entropía < 0.2:
+            return 'BAJA'
+        elif entropía < 0.7:
+            return 'MEDIA'
+        else:
+            return 'ALTA'
+    
+    def _resultado_sin_ambiguedad(self):
+        """Resultado cuando no hay múltiples árboles."""
+        return {
+            'num_arboles': 0,
+            'probabilidades': [],
+            'entropía': 0.0,
+            'confianza': 0.0,
+            'arbol_seleccionado': None,
+            'arbol_idx': -1,
+            'es_ambiguo': False,
+            'nivel_ambiguedad': 'NINGUNA'
+        }

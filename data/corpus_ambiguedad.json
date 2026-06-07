@@ -1,0 +1,30 @@
+{
+  "metadata": {
+    "descripcion": "Corpus para validación de ambigüedad sintáctica con PP-attachment",
+    "formato_score": "1→0.00, 2→0.40, 3→0.60, 4→0.80, 5+→1.00"
+  },
+  "no_ambiguas": [
+    "El gobierno anunció nuevas medidas.",
+    "La agencia confirmó los datos oficiales.",
+    "El presidente declaró el estado de emergencia."
+  ],
+  "ambiguas": {
+    "pp_attachment_2trees": {
+      "descripcion": "Un PP, dos posibles adjunciones (VP vs NP)",
+      "oraciones": [
+        "El periodista vio al político con el telescopio.",
+        "Vi al hombre con la cámara."
+      ],
+      "arboles_esperados": 2,
+      "score_esperado": 0.40
+    },
+    "pp_attachment_2pp": {
+      "descripcion": "Dos PPs, combinaciones de adjunción",
+      "oraciones": [
+        "El hombre vio a la mujer con los binoculares en el parque."
+      ],
+      "arboles_esperados": 2,
+      "score_esperado": 0.40
+    }
+  }
+}

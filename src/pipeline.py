@@ -201,7 +201,7 @@ class PipelineNoticias:
                 self._log("⚠ No se encontró gramática, usando mínima", 2)
                 gramatica_local = {}
         
-        arboles_parse = []
+        arboles_por_oracion = []
         charts = []
         sintaxis_exitosa = 0
         
@@ -212,20 +212,26 @@ class PipelineNoticias:
                     arboles_oracion, chart = chart_parser(tokens_oracion, gramatica_local)
                     charts.append(chart)
                     if arboles_oracion:
-                        arboles_parse.extend(arboles_oracion)
+                        arboles_por_oracion.append(arboles_oracion)
                         sintaxis_exitosa += 1
+                    else:
+                        arboles_por_oracion.append([])
                 except:
                     # Fallback: crear estructura simple
-                    arboles_parse.append({'estructura': 'S', 'tokens': tokens_oracion})
+                    arboles_por_oracion.append([
+                        {'estructura': 'S', 'tokens': tokens_oracion}
+                    ])
                     sintaxis_exitosa += 1
             except Exception as e:
                 self._log(f"⚠ Error analizando oración {idx_oracion}: {e}", 2)
+                arboles_por_oracion.append([])
         
+        total_arboles = sum(len(t) for t in arboles_por_oracion)
         detalles = {
             'num_oraciones': len(tokens),
             'sintaxis_exitosa': sintaxis_exitosa,
             'tasa_exito': round(sintaxis_exitosa / len(tokens), 2) if tokens else 0,
-            'num_arboles': len(arboles_parse),
+            'num_arboles': total_arboles,
             'num_charts': len(charts)
         }
         
@@ -233,29 +239,55 @@ class PipelineNoticias:
             f"✓ {sintaxis_exitosa}/{len(tokens)} oraciones analizadas sintácticamente"
         )
         
-        return arboles_parse, detalles
+        return arboles_por_oracion, detalles
     
     def detecta_ambiguedad_paso(
         self,
-        arboles_parse: List[Any],
+        arboles_por_oracion: List[List[Any]],
         texto_original: str = ""
     ) -> Dict[str, Any]:
         """
-        Paso 3: Detección de ambigüedad.
+        Paso 3: Detección de ambigüedad por oración.
         
         Args:
-            arboles_parse: Árboles del chart parser
+            arboles_por_oracion: Lista de listas de árboles por oración
             
         Returns:
             Dict con análisis de ambigüedad
         """
         self._log("Detectando ambigüedad sintáctica...", 3)
         
-        resultado = self.detector_ambiguedad.analiza_completo(arboles_parse, texto_original)
+        max_trees = 0
+        for arboles in arboles_por_oracion:
+            resultado = self.detector_ambiguedad.analiza_completo(arboles, texto_original)
+            num = resultado['num_interpretaciones']
+            if num > max_trees:
+                max_trees = num
+        
+        score_amb = self.detector_ambiguedad.calcula_ambiguedad_score(max_trees)
+        
+        # Incluir análisis léxico para compatibilidad con main_pipeline.py
+        analisis_lexico = self.detector_ambiguedad.analiza_texto(texto_original)
+        
+        resultado = {
+            'num_interpretaciones': max_trees,
+            'score_ambiguedad': score_amb,
+            'palabras_ambiguas': analisis_lexico['palabras_ambiguas'],
+            'desambiguaciones': analisis_lexico['desambiguaciones'],
+            'indicadores_sospechosos': {
+                'es_sospechoso': max_trees > 1,
+                'ambiguedad_sintactica': max_trees > 1,
+                'motivo': (
+                    f"Se encontraron hasta {max_trees} interpretaciones sintácticas"
+                    if max_trees > 1 else
+                    "Texto sintácticamente claro"
+                ),
+            },
+        }
         
         self._log(
-            f"✓ {resultado['num_interpretaciones']} interpretaciones posibles, "
-            f"score: {resultado['score_ambiguedad']}"
+            f"✓ {max_trees} interpretaciones posibles, "
+            f"score: {score_amb}"
         )
         
         return resultado
@@ -343,10 +375,11 @@ class PipelineNoticias:
                 'dag': dag_oracion
             })
 
+        total_arboles = sum(len(t) for t in arboles_parse) if arboles_parse else 0
         caracteristicas = {
             'estructuras_encontradas': estructuras,
             'num_caracteristicas': len(estructuras),
-            'num_arboles_cfg': len(arboles_parse),
+            'num_arboles_cfg': total_arboles,
             'usa_dcg': True,
             'usa_dag': True
         }
@@ -384,17 +417,26 @@ class PipelineNoticias:
     def analiza_pcfg_paso(
         self,
         resultado_patrones: Dict[str, Any],
-        num_oraciones: int
+        num_oraciones: int,
+        resultado_ambiguedad: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Paso 7: PCFG con reglas ponderadas por sospecha linguistica.
+        El PCFG consume el resultado de ambigüedad (flujo: CFG → Ambigüedad → PCFG).
         """
         self._log("Aplicando PCFG con pesos de sospecha...", 7)
 
         resultado = self.analizador_pcfg.analiza(resultado_patrones, num_oraciones)
 
+        score_amb = (resultado_ambiguedad or {}).get('score_ambiguedad', 0.0)
+        if score_amb > 0:
+            resultado['score_pcfg'] = round(
+                min(resultado['score_pcfg'] + score_amb * 0.5, 1.0), 3
+            )
+            resultado['ambiguedad_incorporada'] = score_amb
+
         self._log(
-            f"âœ“ PCFG score: {resultado['score_pcfg']} "
+            f"✓ PCFG score: {resultado['score_pcfg']} "
             f"({resultado['num_reglas_aplicadas']} reglas)"
         )
 
@@ -496,7 +538,7 @@ class PipelineNoticias:
         # Paso 6: Patrones sospechosos
         resultado_patrones = self.detecta_patrones_paso(texto, tokens)
 
-        resultado_pcfg = self.analiza_pcfg_paso(resultado_patrones, len(oraciones))
+        resultado_pcfg = self.analiza_pcfg_paso(resultado_patrones, len(oraciones), resultado_ambiguedad)
 
         # Paso 7: Clasificación
         resultado_clasificacion = self.clasifica_paso(

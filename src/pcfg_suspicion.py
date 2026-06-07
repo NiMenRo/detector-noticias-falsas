@@ -19,6 +19,12 @@ PESOS_REGLAS = {
     "S -> S_NEUTRAL": 0.15,
 }
 
+# Factor de normalización para score_pcfg
+# score = min(sum(pesos) / NORM_FACTOR, 1.0)
+# Esto permite que casos con 2-3 reglas ~0.4-0.6
+# y casos con 6+ reglas > 0.8
+NORM_FACTOR = 5.0
+
 
 class AnalizadorPCFGSospecha:
     """Calcula una probabilidad de sospecha a partir de reglas ponderadas."""
@@ -44,10 +50,9 @@ class AnalizadorPCFGSospecha:
         if not reglas:
             return 0.0
 
-        prob_no_sospecha = 1.0
-        for regla in reglas:
-            prob_no_sospecha *= 1.0 - regla["peso"]
-        return round(min(1.0 - prob_no_sospecha, 1.0), 3)
+        suma_pesos = sum(r["peso"] for r in reglas)
+        score = min(suma_pesos / NORM_FACTOR, 1.0)
+        return round(score, 3)
 
     def analiza(self, patrones: Dict[str, Any], num_oraciones: int) -> Dict[str, Any]:
         reglas = []

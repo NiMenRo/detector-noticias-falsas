@@ -1,0 +1,23 @@
+# Corpus Neutral - Noticias verificadas, información oficial
+# Formato: Cada línea es una oración representativa del corpus
+
+El gobierno anunció nuevas políticas económicas en conferencia oficial.
+La agencia Reuters reportó el evento con confirmación de múltiples fuentes.
+Informes académicos de expertos respaldan la investigación científica.
+El presidente declara medidas preventivas según protocolos establecidos.
+Científicos confirman hallazgos mediante metodología validada.
+Organismos internacionales reportan datos estadísticos verificados.
+Instituciones educativas publican resultados de estudios largo plazo.
+Agencias de seguridad establecen nuevas regulaciones de protección.
+Expertos en medicina confirman procedimientos en hospitales autorizados.
+Investigadores descubren avances mediante experimentación controlada.
+Comunicados oficiales describen cambios en política exterior.
+Universidades publican estudios revisados por pares académicos.
+Autoridades confirman cifras mediante reportes técnicos documentados.
+Laboratorios certificados validan resultados de investigación.
+Organismos especializados documentan evaluaciones metodológicas.
+Centros de investigación publican hallazgos de proyectos largos.
+Instituciones verifican datos mediante procesos auditoría independiente.
+Ministerios establecen directrices según normas internacionales.
+Agencias confirman información mediante canales comunicación oficial.
+Profesionales certificados evalúan procedimientos establecidos protocolos.

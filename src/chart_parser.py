@@ -1,4 +1,11 @@
+import unicodedata
 from nodes import Nodo
+
+
+def _sin_acentos(texto):
+    """Normaliza eliminando acentos para matching insensible."""
+    nfkd = unicodedata.normalize('NFKD', texto)
+    return ''.join(c for c in nfkd if not unicodedata.combining(c))
 
 
 class Edge:
@@ -12,6 +19,7 @@ class Edge:
         self.end = end
 
         self.hijos = hijos if hijos else []
+        self.alternativas = []  # Otras formas de derivar el mismo edge
 
 
     def completo(self):
@@ -53,6 +61,9 @@ def chart_parser(tokens, gramatica):
                 existente.start == edge.start and
                 existente.end == edge.end
             ):
+                # Si tiene diferentes hijos, guardamos como alternativa
+                if existente.hijos != edge.hijos and edge.hijos:
+                    existente.alternativas.append(edge.hijos)
                 return False
 
         chart[posicion].append(edge)
@@ -114,11 +125,11 @@ def chart_parser(tokens, gramatica):
 
 
 
-                # Scanner
+                # Scanner (insensible a acentos)
 
                 elif siguiente is not None:
 
-                    if i < len(tokens) and tokens[i] == siguiente:
+                    if i < len(tokens) and _sin_acentos(tokens[i]) == _sin_acentos(siguiente):
 
                         nuevo = Edge(
                             lhs=edge.lhs,
@@ -164,6 +175,24 @@ def chart_parser(tokens, gramatica):
 
     arboles = []
 
+    def generar_arboles(edge_lhs, hijos_listas):
+        """Genera todas las combinaciones de árboles a partir de listas de hijos alternativos."""
+        if not hijos_listas:
+            return [Nodo(edge_lhs, [])]
+        
+        primeros_hijos = hijos_listas[0]
+        resto_hijos = hijos_listas[1:]
+        
+        arboles_resto = generar_arboles(edge_lhs, resto_hijos) if resto_hijos else [Nodo(edge_lhs, [])]
+        
+        resultados = []
+        for hijos in primeros_hijos:
+            for arbol_r in arboles_resto:
+                nuevos = Nodo(edge_lhs, hijos)
+                resultados.append(nuevos)
+        
+        return resultados if resultados else [Nodo(edge_lhs, primeros_hijos[0]) if primeros_hijos else Nodo(edge_lhs, [])]
+
     for edge in chart[len(tokens)]:
 
         if (
@@ -173,8 +202,19 @@ def chart_parser(tokens, gramatica):
         ):
 
             arbol = Nodo("S", edge.hijos)
-
             arboles.append(arbol)
+            
+            # Generar árboles alternativos
+            for alt_hijos in edge.alternativas:
+                arbol_alt = Nodo("S", alt_hijos)
+                # Evitar duplicados
+                es_duplicado = False
+                for existente in arboles:
+                    if str(existente) == str(arbol_alt):
+                        es_duplicado = True
+                        break
+                if not es_duplicado:
+                    arboles.append(arbol_alt)
 
 
     return arboles, chart
